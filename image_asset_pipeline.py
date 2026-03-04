@@ -901,8 +901,8 @@ def _build_name(template: str, category: str, style: str, seq: int, ext: str) ->
         seq=f"{seq:03d}",
         date=datetime.now().strftime('%Y%m%d')
     )
-    # Clean up double dashes from empty style
-    name = re.sub(r'-{2,}', '-', name).strip('-')
+    # Clean up repeated separators from empty tokens
+    name = re.sub(r'[-_]{2,}', '_', name).strip('-_')
     return name + ext.lower()
 
 
