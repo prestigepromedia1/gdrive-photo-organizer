@@ -479,7 +479,7 @@ class DriveStorage:
         while True:
             r = self.service.files().list(
                 q=q, spaces='drive', pageToken=token, pageSize=100,
-                fields='nextPageToken, files(id, name, mimeType)',
+                fields='nextPageToken, files(id, name, mimeType, createdTime)',
                 supportsAllDrives=True, includeItemsFromAllDrives=True
             ).execute()
             for f in r.get('files', []):
@@ -755,6 +755,20 @@ def slugify(text: str) -> str:
     return text
 
 
+def _sort_key(sort_mode):
+    """Return a sort key function based on mode."""
+    if sort_mode == 'created':
+        return lambda x: x.get('createdTime', x.get('name', ''))
+    return lambda x: x.get('name', '')
+
+
+def _sort_local(files, sort_mode):
+    """Sort local Path objects by name or creation time."""
+    if sort_mode == 'created':
+        return sorted(files, key=lambda f: f.stat().st_ctime)
+    return sorted(files)
+
+
 def cmd_rename(args):
     """Bulk rename files with metadata-rich names based on folder structure."""
     print("=" * 60)
@@ -762,85 +776,117 @@ def cmd_rename(args):
     print("=" * 60)
 
     template = args.template  # e.g. "{category}_{style}_{seq}"
+    explicit_category = getattr(args, 'category', None)
+    sort_mode = getattr(args, 'sort', 'name')
+
+    if explicit_category:
+        print(f"  Category override: {explicit_category}")
+    if sort_mode == 'created':
+        print(f"  Sort: by date added (oldest first)")
 
     if args.local:
         storage = LocalStorage(args.source)
         print(f"  Source: {args.source}")
 
-        # Walk organized folder structure
         base = Path(args.source)
         renames = []
 
-        for category_dir in sorted(base.iterdir()):
-            if not category_dir.is_dir():
-                continue
-            if category_dir.name.startswith('_'):
-                continue  # skip _Review etc
-
-            category = category_dir.name
-            images = sorted(f for f in category_dir.iterdir()
-                            if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS)
-
-            # Check for style sub-folders
-            style_dirs = [d for d in category_dir.iterdir() if d.is_dir()]
+        if explicit_category:
+            # --category mode: folders are styles, category is explicit
+            # Check for sub-folders (styles)
+            style_dirs = [d for d in base.iterdir() if d.is_dir() and not d.name.startswith('_')]
             if style_dirs:
                 for style_dir in sorted(style_dirs):
                     style = style_dir.name
-                    style_images = sorted(f for f in style_dir.iterdir()
-                                          if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS)
+                    style_images = _sort_local(
+                        [f for f in style_dir.iterdir()
+                         if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS],
+                        sort_mode)
                     for seq, img in enumerate(style_images, 1):
-                        new_name = _build_name(template, category, style, seq, img.suffix)
-                        renames.append((str(img), new_name, category, style))
+                        new_name = _build_name(template, explicit_category, style, seq, img.suffix)
+                        renames.append((str(img), new_name, explicit_category, style))
             else:
+                # Flat folder, no styles
+                images = _sort_local(
+                    [f for f in base.iterdir()
+                     if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS],
+                    sort_mode)
                 for seq, img in enumerate(images, 1):
-                    new_name = _build_name(template, category, "", seq, img.suffix)
-                    renames.append((str(img), new_name, category, ""))
+                    new_name = _build_name(template, explicit_category, "", seq, img.suffix)
+                    renames.append((str(img), new_name, explicit_category, ""))
+        else:
+            # Standard mode: top-level folders are categories
+            for category_dir in sorted(base.iterdir()):
+                if not category_dir.is_dir():
+                    continue
+                if category_dir.name.startswith('_'):
+                    continue
+
+                category = category_dir.name
+                images = _sort_local(
+                    [f for f in category_dir.iterdir()
+                     if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS],
+                    sort_mode)
+
+                style_dirs = [d for d in category_dir.iterdir() if d.is_dir()]
+                if style_dirs:
+                    for style_dir in sorted(style_dirs):
+                        style = style_dir.name
+                        style_images = _sort_local(
+                            [f for f in style_dir.iterdir()
+                             if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS],
+                            sort_mode)
+                        for seq, img in enumerate(style_images, 1):
+                            new_name = _build_name(template, category, style, seq, img.suffix)
+                            renames.append((str(img), new_name, category, style))
+                else:
+                    for seq, img in enumerate(images, 1):
+                        new_name = _build_name(template, category, "", seq, img.suffix)
+                        renames.append((str(img), new_name, category, ""))
 
     else:
         storage = DriveStorage(args.credentials)
         print("  [+] Google Drive connected")
 
-        # Walk folder structure on Drive
         renames = []
         source = args.source
+        sort_fn = _sort_key(sort_mode)
+
+        # Auto-detect category from Drive folder name if not explicit
+        if not explicit_category:
+            folder_meta = storage.service.files().get(
+                fileId=source, fields='name',
+                supportsAllDrives=True
+            ).execute()
+            explicit_category = folder_meta['name']
+            print(f"  Product (from folder): {explicit_category}")
 
         q = f"'{source}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'"
         r = storage.service.files().list(
             q=q, spaces='drive', fields='files(id, name)',
             supportsAllDrives=True, includeItemsFromAllDrives=True
         ).execute()
+        sub_folders = sorted(r.get('files', []), key=lambda x: x['name'])
+        sub_folders = [f for f in sub_folders if not f['name'].startswith('_')]
 
-        for cat_folder in sorted(r.get('files', []), key=lambda x: x['name']):
-            if cat_folder['name'].startswith('_'):
-                continue
-
-            category = cat_folder['name']
-            images = storage.list_images(cat_folder['id'])
-            images.sort(key=lambda x: x['name'])
-
-            # Check for sub-folders (styles)
-            subq = (f"'{cat_folder['id']}' in parents and trashed=false "
-                    f"and mimeType='application/vnd.google-apps.folder'")
-            subr = storage.service.files().list(
-                q=subq, spaces='drive', fields='files(id, name)',
-                supportsAllDrives=True, includeItemsFromAllDrives=True
-            ).execute()
-            sub_folders = subr.get('files', [])
-
-            if sub_folders:
-                for sf in sorted(sub_folders, key=lambda x: x['name']):
-                    style = sf['name']
-                    style_imgs = storage.list_images(sf['id'])
-                    style_imgs.sort(key=lambda x: x['name'])
-                    for seq, img in enumerate(style_imgs, 1):
-                        ext = Path(img['name']).suffix
-                        new_name = _build_name(template, category, style, seq, ext)
-                        renames.append((img['id'], new_name, category, style))
-            else:
-                for seq, img in enumerate(images, 1):
+        if sub_folders:
+            # Sub-folders exist: treat them as styles
+            for sf in sub_folders:
+                style = sf['name']
+                style_imgs = storage.list_images(sf['id'])
+                style_imgs.sort(key=sort_fn)
+                for seq, img in enumerate(style_imgs, 1):
                     ext = Path(img['name']).suffix
-                    new_name = _build_name(template, category, "", seq, ext)
-                    renames.append((img['id'], new_name, category, ""))
+                    new_name = _build_name(template, explicit_category, style, seq, ext)
+                    renames.append((img['id'], new_name, explicit_category, style))
+        else:
+            # Flat folder, no styles
+            images = storage.list_images(source)
+            images.sort(key=sort_fn)
+            for seq, img in enumerate(images, 1):
+                ext = Path(img['name']).suffix
+                new_name = _build_name(template, explicit_category, "", seq, ext)
+                renames.append((img['id'], new_name, explicit_category, ""))
 
     print(f"\n{len(renames)} files to rename\n")
 
@@ -1121,8 +1167,11 @@ def main():
     ren.add_argument('source', help='Organized folder (local path or Drive ID)')
     ren.add_argument('--local', action='store_true', help='Source is local')
     ren.add_argument('--credentials', default='credentials.json', help='Google OAuth credentials')
+    ren.add_argument('--category', help='Product/category name (folders become styles)')
     ren.add_argument('--template', default='{category}_{style}_{seq}',
                      help='Naming template. Tokens: {category}, {style}, {seq}, {date}')
+    ren.add_argument('--sort', choices=['name', 'created'], default='name',
+                     help='Sort order for sequencing: name (alpha) or created (date added)')
     ren.add_argument('--dry-run', action='store_true', help='Preview without renaming')
 
     # -- index --
