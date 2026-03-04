@@ -18,6 +18,9 @@ asset_index_*.json
 dedup_report_*.csv
 folder_summary_*.txt
 
+# Legacy standalone scripts
+_archive/
+
 # Python
 __pycache__/
 *.py[cod]

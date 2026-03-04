@@ -71,6 +71,8 @@ class MatchResult:
     details: str = ""
     detected_text: str = ""
     style: str = ""
+    multiple_products: bool = False
+    products_found: list = None
 
 
 @dataclass
@@ -311,10 +313,21 @@ class VisionEngine:
                 if guess.lower() == "unknown":
                     conf = min(conf, 0.50)
 
+                multi = result.get('multiple_products', False)
+                found = result.get('products_found', [])
+                # Validate products_found against catalog
+                if found:
+                    found = [p for p in found if any(
+                        p.lower() in v.lower() or v.lower() in p.lower()
+                        for v in self.category_list)]
+                    multi = len(found) >= 2
+
                 return MatchResult(
                     category=guess, confidence=conf,
                     method=MatchMethod.VISION,
-                    details=result.get('visible_clues', '')[:80]
+                    details=result.get('visible_clues', '')[:80],
+                    multiple_products=multi,
+                    products_found=found if multi else None
                 )
         except Exception as e:
             print(f"    Vision error: {e}")
@@ -353,11 +366,16 @@ class VisionEngine:
 
 {cats}
 
+If the image contains products from MULTIPLE categories above, set multiple_products to true
+and list all categories found in products_found.
+
 RESPOND WITH JSON:
 {{
-    "category": "Category name from list, or Unknown",
+    "category": "Best matching category from list, or Unknown",
     "confidence": 0.0 to 1.0,
-    "visible_clues": "What you see that led to your guess"
+    "visible_clues": "What you see that led to your guess",
+    "multiple_products": false,
+    "products_found": []
 }}
 
 If you cannot confidently identify, use "Unknown"."""
@@ -632,12 +650,14 @@ def cmd_organize(args):
             base_output = str(Path(source) / "Organized")
             Path(base_output).mkdir(exist_ok=True)
         review_dir = storage.create_folder("_Review", base_output)
+        multi_dir = storage.create_folder("_Multiple Products", base_output)
     else:
         if args.in_place:
             base_output = source
         else:
             base_output = storage.create_folder("Organized", source)
         review_dir = storage.create_folder("_Review", base_output)
+        multi_dir = storage.create_folder("_Multiple Products", base_output)
 
     # Batching
     if args.batch:
@@ -689,7 +709,12 @@ def cmd_organize(args):
                 match = vision.identify(image_bytes, fname, mime)
 
         # Move file
-        if match and match.confidence >= CONFIDENCE_THRESHOLD and match.category != "Unknown":
+        if match and match.multiple_products and match.products_found:
+            names = ", ".join(match.products_found[:3])
+            print(f"  -> Multiple products: {names} ({match.confidence:.0%})")
+            storage.move_file(fid, multi_dir)
+            stats['multi_product'] += 1
+        elif match and match.confidence >= CONFIDENCE_THRESHOLD and match.category != "Unknown":
             print(f"  -> {match.category} ({match.confidence:.0%}) [{match.method.value}]")
             dest = storage.create_folder(match.category, base_output)
             if args.local:
@@ -715,6 +740,36 @@ def cmd_organize(args):
             detected_text=match.detected_text
         ))
 
+    # Phase 2: Style sub-sorting (if --with-styles)
+    if getattr(args, 'with_styles', False) and not args.dry_run:
+        print("\n" + "-" * 60)
+        print("Phase 2: Style Classification")
+        print("-" * 60)
+        style_categories = args.style_categories
+
+        if args.local:
+            cat_dirs = [d for d in Path(base_output).iterdir()
+                        if d.is_dir() and not d.name.startswith('_')]
+            cat_dirs.sort(key=lambda d: d.name)
+            style_folders = [{'name': d.name, 'id': str(d)} for d in cat_dirs]
+        else:
+            q = (f"'{base_output}' in parents and trashed=false "
+                 f"and mimeType='application/vnd.google-apps.folder'")
+            r = storage.service.files().list(
+                q=q, spaces='drive', fields='files(id, name)',
+                supportsAllDrives=True, includeItemsFromAllDrives=True
+            ).execute()
+            style_folders = [f for f in r.get('files', []) if not f['name'].startswith('_')]
+            style_folders.sort(key=lambda f: f['name'])
+
+        style_total = 0
+        for folder in style_folders:
+            print(f"\n  {folder['name']}:")
+            count = _style_classify_folder(
+                storage, vision, folder['id'], style_categories, args.local)
+            style_total += count
+        stats['style_classified'] = style_total
+
     # Summary
     print("\n" + "=" * 60)
     print("ORGANIZE COMPLETE")
@@ -723,9 +778,13 @@ def cmd_organize(args):
     print(f"Filename:    {stats.get('filename_matched', 0)}")
     print(f"OCR:         {stats.get('ocr_matched', 0)}")
     print(f"Vision:      {stats.get('vision_matched', 0)}")
+    print(f"Multi-prod:  {stats.get('multi_product', 0)}")
     print(f"Review:      {stats.get('review', 0)}")
+    if stats.get('style_classified'):
+        print(f"Styled:      {stats['style_classified']}")
 
     success = sum(stats.get(f'{m}_matched', 0) for m in ['filename', 'ocr', 'vision'])
+    success += stats.get('multi_product', 0)
     if stats['total'] > 0:
         print(f"Success:     {success}/{stats['total']} ({100*success/stats['total']:.1f}%)")
 
@@ -1140,6 +1199,90 @@ def _fmt_size(b):
 
 
 # ============================================================================
+# Style sub-sorting (Phase 2)
+# ============================================================================
+
+def _style_classify_folder(storage, vision, folder_id, style_categories, is_local, dry_run=False):
+    """Classify images in a single category folder into style sub-folders."""
+    images = storage.list_images(folder_id)
+    if not images:
+        return 0
+
+    # Create style sub-folders
+    style_folders = {}
+    for style in style_categories:
+        style_folders[style] = storage.create_folder(style, folder_id)
+
+    classified = 0
+    for i, img in enumerate(sorted(images, key=lambda x: x['name']), 1):
+        fname = img['name']
+        fid = img['id'] if not is_local else img['path']
+        mime = img.get('mimeType', 'image/jpeg')
+
+        image_bytes = storage.read_file(fid)
+        style = vision.classify_style(image_bytes, mime, style_categories)
+        print(f"    [{i}/{len(images)}] {fname} -> {style}")
+
+        if not dry_run:
+            storage.move_file(fid, style_folders[style])
+        classified += 1
+
+    return classified
+
+
+def cmd_style_only(args):
+    """Run style classification on already-organized category folders."""
+    print("=" * 60)
+    print("Image Asset Pipeline - STYLE CLASSIFICATION")
+    print("=" * 60)
+
+    if args.local:
+        storage = LocalStorage(args.source)
+        print(f"  [+] Local mode: {args.source}")
+    else:
+        storage = DriveStorage(args.credentials)
+        print("  [+] Google Drive connected")
+
+    import anthropic
+    vision = VisionEngine([])
+    style_categories = args.style_categories
+    print(f"  [+] Styles: {', '.join(style_categories)}")
+
+    source = args.source
+    # List category sub-folders (skip _ prefixed)
+    if args.local:
+        base = Path(source)
+        cat_dirs = [d for d in base.iterdir()
+                    if d.is_dir() and not d.name.startswith('_')]
+        cat_dirs.sort(key=lambda d: d.name)
+        folders = [{'name': d.name, 'id': str(d)} for d in cat_dirs]
+    else:
+        q = f"'{source}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'"
+        r = storage.service.files().list(
+            q=q, spaces='drive', fields='files(id, name)',
+            supportsAllDrives=True, includeItemsFromAllDrives=True
+        ).execute()
+        folders = [f for f in r.get('files', []) if not f['name'].startswith('_')]
+        folders.sort(key=lambda f: f['name'])
+
+    print(f"\n  Found {len(folders)} category folders\n")
+
+    total = 0
+    for folder in folders:
+        print(f"\n  {folder['name']}:")
+        count = _style_classify_folder(
+            storage, vision, folder['id'], style_categories, args.local, args.dry_run)
+        total += count
+
+    print(f"\n{'=' * 60}")
+    print(f"STYLE CLASSIFICATION COMPLETE - {total} images classified")
+    print("=" * 60)
+
+    if args.dry_run:
+        print("\n[DRY RUN] No files were moved.")
+
+
+# ============================================================================
 # CLI
 # ============================================================================
 
@@ -1161,6 +1304,13 @@ def main():
     org.add_argument('--batch', type=int, help='Batch size')
     org.add_argument('--start-batch', type=int, default=1, help='Start from batch N')
     org.add_argument('--dry-run', action='store_true', help='Preview without moving files')
+    org.add_argument('--with-styles', action='store_true',
+                     help='Also classify into style sub-folders (Product Shot, Lifestyle, etc.)')
+    org.add_argument('--style-only', action='store_true',
+                     help='Run style classification only on already-organized folders')
+    org.add_argument('--style-categories', nargs='+',
+                     default=DEFAULT_STYLE_CATEGORIES,
+                     help='Custom style categories (default: Product Shot, White Background, Lifestyle, Model)')
 
     # -- rename --
     ren = sub.add_parser('rename', help='Bulk rename files with metadata-rich names')
@@ -1192,7 +1342,10 @@ def main():
     args = parser.parse_args()
 
     if args.command == 'organize':
-        cmd_organize(args)
+        if getattr(args, 'style_only', False):
+            cmd_style_only(args)
+        else:
+            cmd_organize(args)
     elif args.command == 'rename':
         cmd_rename(args)
     elif args.command == 'index':

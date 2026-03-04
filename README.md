@@ -78,6 +78,20 @@ python image_asset_pipeline.py rename ./product-photos/Organized --local
 python image_asset_pipeline.py index ./product-photos/Organized --local --format csv
 ```
 
+### Organize with style sub-folders
+
+```bash
+python image_asset_pipeline.py organize ./product-photos --local --catalog categories.json --with-styles
+```
+
+This creates: `Organized/Blue Mountain Blend/Product Shot/`, `Organized/Blue Mountain Blend/Lifestyle/`, etc.
+
+### Style-only pass (on already organized folders)
+
+```bash
+python image_asset_pipeline.py organize ./product-photos/Organized --local --style-only
+```
+
 ### Find duplicates
 
 ```bash
@@ -151,6 +165,9 @@ python image_asset_pipeline.py organize SOURCE [options]
   --batch N            Process N images at a time
   --start-batch N      Resume from batch N
   --dry-run            Preview without moving files
+  --with-styles        Also classify into style sub-folders
+  --style-only         Run style classification only on organized folders
+  --style-categories   Custom style list (default: Product Shot, White Background, Lifestyle, Model)
 ```
 
 ### rename
