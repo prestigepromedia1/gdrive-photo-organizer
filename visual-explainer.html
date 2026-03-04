@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Asset Pipeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --font-display: 'Instrument Serif', Georgia, serif;
+    --font-body: 'DM Sans', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+
+    --bg: #faf9f7;
+    --surface: #ffffff;
+    --surface2: #f3f1ed;
+    --surface-elevated: #fffdf9;
+    --border: rgba(0, 0, 0, 0.07);
+    --border-bright: rgba(0, 0, 0, 0.14);
+    --text: #1e1b16;
+    --text-dim: #7a7265;
+
+    --navy: #1e3a5f;
+    --navy-dim: rgba(30, 58, 95, 0.07);
+    --gold: #b8860b;
+    --gold-dim: rgba(184, 134, 11, 0.08);
+    --emerald: #166534;
+    --emerald-dim: rgba(22, 101, 52, 0.07);
+    --amber: #92400e;
+    --amber-dim: rgba(146, 64, 14, 0.07);
+    --rose: #9f1239;
+    --rose-dim: rgba(159, 18, 57, 0.06);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141210;
+      --surface: #1e1c19;
+      --surface2: #28251f;
+      --surface-elevated: #2a2720;
+      --border: rgba(255, 255, 255, 0.06);
+      --border-bright: rgba(255, 255, 255, 0.12);
+      --text: #ede8e0;
+      --text-dim: #9e9488;
+
+      --navy: #7db4e0;
+      --navy-dim: rgba(125, 180, 224, 0.1);
+      --gold: #d4a73a;
+      --gold-dim: rgba(212, 167, 58, 0.1);
+      --emerald: #4ade80;
+      --emerald-dim: rgba(74, 222, 128, 0.08);
+      --amber: #fbbf24;
+      --amber-dim: rgba(251, 191, 36, 0.08);
+      --rose: #fda4af;
+      --rose-dim: rgba(253, 164, 175, 0.08);
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    background-image:
+      radial-gradient(ellipse at 15% 5%, var(--gold-dim) 0%, transparent 45%),
+      radial-gradient(ellipse at 85% 90%, var(--navy-dim) 0%, transparent 40%);
+    color: var(--text);
+    font-family: var(--font-body);
+    padding: 48px 40px;
+    min-height: 100vh;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeScale {
+    from { opacity: 0; transform: scale(0.92); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .anim {
+    animation: fadeUp 0.45s ease-out both;
+    animation-delay: calc(var(--i, 0) * 0.07s);
+  }
+  .anim-scale {
+    animation: fadeScale 0.4s ease-out both;
+    animation-delay: calc(var(--i, 0) * 0.07s);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  /* ============ HERO ============ */
+  .hero {
+    margin-bottom: 56px;
+  }
+  .hero h1 {
+    font-family: var(--font-display);
+    font-size: 52px;
+    font-weight: 400;
+    letter-spacing: -0.5px;
+    line-height: 1.1;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+  .hero-accent {
+    color: var(--gold);
+  }
+  .hero .tagline {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 20px;
+    letter-spacing: 0.3px;
+  }
+  .hero .lead {
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--text-dim);
+    max-width: 640px;
+  }
+  .hero .lead strong { color: var(--text); font-weight: 600; }
+
+  /* ============ PROBLEM / SOLUTION BAR ============ */
+  .ps-bar {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 0;
+    align-items: stretch;
+    margin-bottom: 56px;
+  }
+  .ps-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+  }
+  .ps-card--problem {
+    border-color: var(--rose-dim);
+  }
+  .ps-card--solution {
+    border-color: var(--emerald-dim);
+    background: var(--surface-elevated);
+  }
+  .ps-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.8px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .ps-label .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .ps-card--problem .ps-label { color: var(--rose); }
+  .ps-card--problem .ps-label .dot { background: var(--rose); }
+  .ps-card--solution .ps-label { color: var(--emerald); }
+  .ps-card--solution .ps-label .dot { background: var(--emerald); }
+
+  .ps-card .example {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+  .ps-card .example .file {
+    display: inline-block;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-size: 12px;
+    margin: 2px 1px;
+  }
+  .ps-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 16px;
+  }
+  .ps-arrow svg {
+    width: 32px;
+    height: 32px;
+    fill: none;
+    stroke: var(--gold);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* ============ PIPELINE SECTION ============ */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .section-header .num {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gold);
+    background: var(--gold-dim);
+    padding: 3px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+  }
+  .section-header h2 {
+    font-family: var(--font-display);
+    font-size: 30px;
+    font-weight: 400;
+  }
+
+  /* ============ PIPELINE CARDS ============ */
+  .pipeline {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    margin-bottom: 56px;
+    align-items: stretch;
+  }
+  .pipe-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 24px 20px;
+    position: relative;
+  }
+  .pipe-card:first-child { border-radius: 12px 0 0 12px; }
+  .pipe-card:last-child { border-radius: 0 12px 12px 0; }
+  .pipe-card + .pipe-card { border-left: none; }
+
+  .pipe-card::after {
+    content: '';
+    position: absolute;
+    right: -1px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-top: 10px solid transparent;
+    border-bottom: 10px solid transparent;
+    border-left: 10px solid var(--border-bright);
+    z-index: 2;
+  }
+  .pipe-card:last-child::after { display: none; }
+
+  .pipe-num {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 8px;
+  }
+  .pipe-name {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .pipe-desc {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    margin-bottom: 12px;
+  }
+  .pipe-example {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: var(--text-dim);
+    overflow-wrap: break-word;
+    line-height: 1.5;
+  }
+
+  .pipe-card:nth-child(1) .pipe-num { color: var(--navy); }
+  .pipe-card:nth-child(2) .pipe-num { color: var(--gold); }
+  .pipe-card:nth-child(3) .pipe-num { color: var(--emerald); }
+  .pipe-card:nth-child(4) .pipe-num { color: var(--amber); }
+
+  /* ============ AI IDENTIFICATION TIERS ============ */
+  .tiers {
+    margin-bottom: 56px;
+  }
+  .tier-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+  }
+  .tier-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .tier-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+  }
+  .tier-card:nth-child(1)::before { background: var(--emerald); }
+  .tier-card:nth-child(2)::before { background: var(--navy); }
+  .tier-card:nth-child(3)::before { background: var(--gold); }
+
+  .tier-badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    display: inline-block;
+    margin-bottom: 12px;
+  }
+  .tier-card:nth-child(1) .tier-badge {
+    color: var(--emerald); background: var(--emerald-dim);
+  }
+  .tier-card:nth-child(2) .tier-badge {
+    color: var(--navy); background: var(--navy-dim);
+  }
+  .tier-card:nth-child(3) .tier-badge {
+    color: var(--gold); background: var(--gold-dim);
+  }
+
+  .tier-card h3 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .tier-card .tier-desc {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    margin-bottom: 10px;
+  }
+  .tier-card .tier-meta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .tier-card .tier-meta span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tier-card .tier-meta .indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  .tier-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 20px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .tier-flow svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: var(--border-bright);
+    stroke-width: 2;
+    stroke-linecap: round;
+    flex-shrink: 0;
+  }
+  .tier-flow .step {
+    padding: 4px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+  .tier-flow .step--active {
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+
+  /* ============ MERMAID SECTION ============ */
+  .mermaid-wrap {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px 24px;
+    overflow: auto;
+    margin-bottom: 56px;
+  }
+  .mermaid-wrap .mermaid {
+    display: flex;
+    justify-content: center;
+    transition: transform 0.2s ease;
+    transform-origin: top center;
+  }
+  .zoom-controls {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 2px;
+    z-index: 10;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px;
+  }
+  .zoom-controls button {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+  }
+  .zoom-controls button:hover {
+    background: var(--border);
+    color: var(--text);
+  }
+  .mermaid-wrap.is-zoomed { cursor: grab; }
+  .mermaid-wrap.is-panning { cursor: grabbing; user-select: none; }
+
+  .mermaid .nodeLabel {
+    font-family: var(--font-body) !important;
+    font-size: 14px !important;
+  }
+  .mermaid .edgeLabel {
+    font-family: var(--font-mono) !important;
+    font-size: 11px !important;
+    color: var(--text-dim) !important;
+    background-color: var(--bg) !important;
+  }
+  .mermaid .edgeLabel rect { fill: var(--bg) !important; }
+  .mermaid .nodeLabel { color: var(--text) !important; }
+
+  /* ============ FEATURE GRID ============ */
+  .features {
+    margin-bottom: 56px;
+  }
+  .feat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .feat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 22px;
+    transition: border-color 0.2s;
+  }
+  .feat-card:hover { border-color: var(--border-bright); }
+  .feat-card h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .feat-card p {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+  .feat-card code {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--navy-dim);
+    color: var(--navy);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* ============ QUICKSTART ============ */
+  .quickstart {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 32px;
+    margin-bottom: 56px;
+  }
+  .quickstart h3 {
+    font-family: var(--font-display);
+    font-size: 22px;
+    margin-bottom: 16px;
+  }
+  .qs-steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .qs-step {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .qs-step .qs-num {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    color: var(--gold);
+  }
+  .qs-step .qs-cmd {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text);
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+  }
+  .qs-step .qs-note {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 6px;
+  }
+
+  /* ============ COST CALLOUT ============ */
+  .callout {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--gold);
+    border-radius: 0 10px 10px 0;
+    padding: 18px 22px;
+    margin-bottom: 40px;
+  }
+  .callout strong { color: var(--text); font-weight: 600; }
+  .callout p {
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  /* ============ FOOTER ============ */
+  .footer {
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+  .footer a {
+    color: var(--navy);
+    text-decoration: none;
+  }
+  .footer a:hover { text-decoration: underline; }
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width: 900px) {
+    body { padding: 24px 16px; }
+    .hero h1 { font-size: 36px; }
+    .pipeline { grid-template-columns: 1fr 1fr; }
+    .pipe-card { border-radius: 10px !important; border: 1px solid var(--border) !important; }
+    .pipe-card::after { display: none; }
+    .tier-grid { grid-template-columns: 1fr; }
+    .ps-bar { grid-template-columns: 1fr; gap: 12px; }
+    .ps-arrow { transform: rotate(90deg); padding: 8px 0; }
+    .feat-grid { grid-template-columns: 1fr; }
+    .qs-steps { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 600px) {
+    .pipeline { grid-template-columns: 1fr; }
+    .tier-flow { flex-wrap: wrap; justify-content: center; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- HERO -->
+  <div class="hero anim" style="--i:0">
+    <h1>Image Asset <span class="hero-accent">Pipeline</span></h1>
+    <p class="tagline">organize &rarr; rename &rarr; index &rarr; dedup</p>
+    <p class="lead">
+      Turn a folder of <strong>IMG_4530.jpg</strong> files into organized, metadata-rich,
+      searchable assets. AI-powered categorization with a three-tier identification pipeline
+      that works on <strong>local folders</strong> or <strong>Google Drive</strong>.
+    </p>
+  </div>
+
+  <!-- PROBLEM / SOLUTION -->
+  <div class="ps-bar">
+    <div class="ps-card ps-card--problem anim" style="--i:1">
+      <div class="ps-label"><span class="dot"></span> Before</div>
+      <div class="example">
+        <span class="file">DSC_0042.jpg</span>
+        <span class="file">IMG_4530.jpg</span>
+        <span class="file">photo_2024.png</span>
+        <span class="file">IMG_7821.jpg</span><br>
+        Invisible to DAMs, search, SEO, and AI tools
+      </div>
+    </div>
+    <div class="ps-arrow anim" style="--i:2">
+      <svg viewBox="0 0 32 32"><path d="M8 16h16M20 10l6 6-6 6"/></svg>
+    </div>
+    <div class="ps-card ps-card--solution anim" style="--i:3">
+      <div class="ps-label"><span class="dot"></span> After</div>
+      <div class="example">
+        <span class="file">NMF-Hydrator_product-shot_001.jpg</span>
+        <span class="file">Retinol-Serum_lifestyle_002.jpg</span><br>
+        Categorized, renamed, indexed, deduplicated
+      </div>
+    </div>
+  </div>
+
+  <!-- PIPELINE -->
+  <div class="section-header anim" style="--i:4">
+    <span class="num">PIPELINE</span>
+    <h2>Four Commands</h2>
+  </div>
+
+  <div class="pipeline">
+    <div class="pipe-card anim-scale" style="--i:5">
+      <div class="pipe-num">01 &middot; ORGANIZE</div>
+      <div class="pipe-name">Sort</div>
+      <div class="pipe-desc">AI sorts images into category folders using filename matching, OCR, and Claude Vision.</div>
+      <div class="pipe-example">IMG_4530.jpg<br>&rarr; NMF Hydrator/IMG_4530.jpg</div>
+    </div>
+    <div class="pipe-card anim-scale" style="--i:7">
+      <div class="pipe-num">02 &middot; RENAME</div>
+      <div class="pipe-name">Rename</div>
+      <div class="pipe-desc">Bulk rename with metadata-rich names using configurable templates.</div>
+      <div class="pipe-example">IMG_4530.jpg<br>&rarr; NMF-Hydrator_product-shot_001.jpg</div>
+    </div>
+    <div class="pipe-card anim-scale" style="--i:9">
+      <div class="pipe-num">03 &middot; INDEX</div>
+      <div class="pipe-name">Catalog</div>
+      <div class="pipe-desc">Export a CSV or JSON asset manifest with every file, category, and path.</div>
+      <div class="pipe-example">asset_index.csv<br>250 rows, 11 columns</div>
+    </div>
+    <div class="pipe-card anim-scale" style="--i:11">
+      <div class="pipe-num">04 &middot; DEDUP</div>
+      <div class="pipe-name">Clean</div>
+      <div class="pipe-desc">Find exact duplicates by MD5 checksum and same-name variants.</div>
+      <div class="pipe-example">Found 12 duplicate groups<br>38 files can be removed</div>
+    </div>
+  </div>
+
+  <!-- AI IDENTIFICATION TIERS -->
+  <div class="tiers">
+    <div class="section-header anim" style="--i:13">
+      <span class="num">AI ENGINE</span>
+      <h2>Three-Tier Identification</h2>
+    </div>
+
+    <div class="tier-flow anim" style="--i:14">
+      <span class="step step--active">Filename Match</span>
+      <svg viewBox="0 0 18 18"><path d="M4 9h10M11 5l4 4-4 4"/></svg>
+      <span class="step">Cloud Vision OCR</span>
+      <svg viewBox="0 0 18 18"><path d="M4 9h10M11 5l4 4-4 4"/></svg>
+      <span class="step">Claude Vision</span>
+      <svg viewBox="0 0 18 18"><path d="M4 9h10M11 5l4 4-4 4"/></svg>
+      <span class="step" style="border-color:var(--rose);color:var(--rose)">_Review/</span>
+    </div>
+
+    <div class="tier-grid">
+      <div class="tier-card anim" style="--i:15">
+        <div class="tier-badge">TIER 1</div>
+        <h3>Filename Matching</h3>
+        <p class="tier-desc">Checks filenames against keywords in your category catalog. Instant, free, no API calls needed.</p>
+        <div class="tier-meta">
+          <span><span class="indicator" style="background:var(--emerald)"></span> Free</span>
+          <span><span class="indicator" style="background:var(--emerald)"></span> Instant</span>
+          <span><span class="indicator" style="background:var(--emerald)"></span> No API key required</span>
+        </div>
+      </div>
+      <div class="tier-card anim" style="--i:16">
+        <div class="tier-badge">TIER 2</div>
+        <h3>Cloud Vision OCR</h3>
+        <p class="tier-desc">Reads text on product labels and packaging. Maps detected text to categories via your label_text_map.</p>
+        <div class="tier-meta">
+          <span><span class="indicator" style="background:var(--amber)"></span> ~$1.50 / 1000 images</span>
+          <span><span class="indicator" style="background:var(--navy)"></span> Google Cloud Vision API</span>
+          <span><span class="indicator" style="background:var(--emerald)"></span> Optional</span>
+        </div>
+      </div>
+      <div class="tier-card anim" style="--i:17">
+        <div class="tier-badge">TIER 3</div>
+        <h3>Claude Vision</h3>
+        <p class="tier-desc">AI visual analysis identifies products and classifies image style when text isn't readable.</p>
+        <div class="tier-meta">
+          <span><span class="indicator" style="background:var(--emerald)"></span> ~$0.01-0.03 / image</span>
+          <span><span class="indicator" style="background:var(--gold)"></span> Anthropic API</span>
+          <span><span class="indicator" style="background:var(--navy)"></span> Fallback only</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ORGANIZE FLOWCHART -->
+  <div class="section-header anim" style="--i:18">
+    <span class="num">FLOW</span>
+    <h2>Organize Decision Tree</h2>
+  </div>
+
+  <div class="mermaid-wrap anim" style="--i:19">
+    <div class="zoom-controls">
+      <button onclick="zoomDiagram(this, 1.2)" title="Zoom in">+</button>
+      <button onclick="zoomDiagram(this, 0.8)" title="Zoom out">&minus;</button>
+      <button onclick="resetZoom(this)" title="Reset zoom">&#8634;</button>
+    </div>
+    <pre class="mermaid">
+      flowchart TD
+        A["Image File"] --> B{"Filename\nKeyword Match?"}
+        B -->|"match found"| C["Assign Category\nconfidence: 0.85"]
+        B -->|"no match"| D{"OCR\nEnabled?"}
+        D -->|"yes"| E["Cloud Vision OCR\nRead Label Text"]
+        D -->|"no / unavailable"| G["Claude Vision\nAnalyze Image"]
+        E --> F{"Text Matches\nlabel_text_map?"}
+        F -->|"match found"| H["Assign Category\nconfidence: 0.90"]
+        F -->|"no match"| G
+        G --> I{"Confidence\n>= 0.60?"}
+        I -->|"yes"| J["Assign Category\n+ Style Classification"]
+        I -->|"no"| K["Move to _Review/\nfor Manual Sort"]
+        C --> L["Move to\nCategory Folder"]
+        H --> L
+        J --> L
+
+        classDef green fill:#16653422,stroke:#166534,stroke-width:2px
+        classDef gold fill:#b8860b22,stroke:#b8860b,stroke-width:2px
+        classDef navy fill:#1e3a5f22,stroke:#1e3a5f,stroke-width:2px
+        classDef rose fill:#9f123922,stroke:#9f1239,stroke-width:2px
+
+        class A navy
+        class C,H,J green
+        class E,G gold
+        class K rose
+        class L green
+    </pre>
+  </div>
+
+  <!-- FEATURES -->
+  <div class="features">
+    <div class="section-header anim" style="--i:20">
+      <span class="num">FEATURES</span>
+      <h2>Built For Real Workflows</h2>
+    </div>
+
+    <div class="feat-grid">
+      <div class="feat-card anim" style="--i:21">
+        <h4>Local + Google Drive</h4>
+        <p>Use <code>--local</code> for filesystem operations or pass a Drive folder ID. Same commands, same output.</p>
+      </div>
+      <div class="feat-card anim" style="--i:22">
+        <h4>Naming Templates</h4>
+        <p>Control rename output with <code>--template "{category}_{style}_{seq}"</code>. Tokens: category, style, seq, date.</p>
+      </div>
+      <div class="feat-card anim" style="--i:23">
+        <h4>Dry Run Mode</h4>
+        <p>Preview organize and rename operations with <code>--dry-run</code> before moving or renaming any files.</p>
+      </div>
+      <div class="feat-card anim" style="--i:24">
+        <h4>Category Catalog</h4>
+        <p>Define categories, keywords, label text maps, and style categories in a simple <code>categories.json</code>.</p>
+      </div>
+      <div class="feat-card anim" style="--i:25">
+        <h4>Batch Processing</h4>
+        <p>Process large folders in batches with <code>--batch N</code> and resume with <code>--start-batch N</code>.</p>
+      </div>
+      <div class="feat-card anim" style="--i:26">
+        <h4>Export Formats</h4>
+        <p>Index outputs CSV, JSON, or both. Include MD5 checksums with <code>--checksums</code> for asset verification.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUICKSTART -->
+  <div class="quickstart anim" style="--i:27">
+    <h3>Quick Start</h3>
+    <div class="qs-steps">
+      <div class="qs-step">
+        <div class="qs-num">INSTALL</div>
+        <div class="qs-cmd">pip install anthropic Pillow</div>
+        <div class="qs-note">Core deps only. Cloud Vision and Drive deps are optional.</div>
+      </div>
+      <div class="qs-step">
+        <div class="qs-num">ORGANIZE</div>
+        <div class="qs-cmd">python image_asset_pipeline.py \
+  organize ./photos \
+  --local --catalog categories.json</div>
+      </div>
+      <div class="qs-step">
+        <div class="qs-num">RENAME + INDEX</div>
+        <div class="qs-cmd">python image_asset_pipeline.py \
+  rename ./photos/Organized --local
+python image_asset_pipeline.py \
+  index ./photos/Organized --local</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COST CALLOUT -->
+  <div class="callout anim" style="--i:28">
+    <p>
+      <strong>Cost-optimized by design.</strong>
+      Filename matching is tried first (free). OCR handles labeled products (~$1.50/1000).
+      Claude Vision is only used as a fallback (~$0.01-0.03/image).
+      For a 2,500-image folder, expect under $10 total.
+    </p>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer anim" style="--i:29">
+    <a href="https://github.com/prestigepromedia1/image-asset-pipeline">github.com/prestigepromedia1/image-asset-pipeline</a>
+    &nbsp;&middot;&nbsp; MIT License
+  </div>
+
+</div>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    look: 'classic',
+    themeVariables: {
+      primaryColor: isDark ? '#2a2720' : '#fffdf9',
+      primaryBorderColor: isDark ? '#d4a73a' : '#b8860b',
+      primaryTextColor: isDark ? '#ede8e0' : '#1e1b16',
+      secondaryColor: isDark ? '#1e2a3a' : '#f0f5ff',
+      secondaryBorderColor: isDark ? '#7db4e0' : '#1e3a5f',
+      secondaryTextColor: isDark ? '#ede8e0' : '#1e1b16',
+      tertiaryColor: isDark ? '#1a2e1a' : '#f0fdf4',
+      tertiaryBorderColor: isDark ? '#4ade80' : '#166534',
+      tertiaryTextColor: isDark ? '#ede8e0' : '#1e1b16',
+      lineColor: isDark ? '#9e9488' : '#7a7265',
+      fontSize: '14px',
+      fontFamily: "'DM Sans', system-ui, sans-serif",
+      noteBkgColor: isDark ? '#28251f' : '#fef3c7',
+      noteTextColor: isDark ? '#ede8e0' : '#1e1b16',
+      noteBorderColor: isDark ? '#d4a73a' : '#b8860b',
+    }
+  });
+</script>
+<script>
+  function updateZoomState(wrap) {
+    var target = wrap.querySelector('.mermaid');
+    var zoom = parseFloat(target.dataset.zoom || '1');
+    wrap.classList.toggle('is-zoomed', zoom > 1);
+  }
+  function zoomDiagram(btn, factor) {
+    var wrap = btn.closest('.mermaid-wrap');
+    var target = wrap.querySelector('.mermaid');
+    var current = parseFloat(target.dataset.zoom || '1');
+    var next = Math.min(Math.max(current * factor, 0.3), 5);
+    target.dataset.zoom = next;
+    target.style.transform = 'scale(' + next + ')';
+    updateZoomState(wrap);
+  }
+  function resetZoom(btn) {
+    var wrap = btn.closest('.mermaid-wrap');
+    var target = wrap.querySelector('.mermaid');
+    target.dataset.zoom = '1';
+    target.style.transform = 'scale(1)';
+    updateZoomState(wrap);
+  }
+  document.querySelectorAll('.mermaid-wrap').forEach(function(wrap) {
+    wrap.addEventListener('wheel', function(e) {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      var target = wrap.querySelector('.mermaid');
+      var current = parseFloat(target.dataset.zoom || '1');
+      var factor = e.deltaY < 0 ? 1.1 : 0.9;
+      var next = Math.min(Math.max(current * factor, 0.3), 5);
+      target.dataset.zoom = next;
+      target.style.transform = 'scale(' + next + ')';
+      updateZoomState(wrap);
+    }, { passive: false });
+    var startX, startY, scrollL, scrollT;
+    wrap.addEventListener('mousedown', function(e) {
+      if (e.target.closest('.zoom-controls')) return;
+      var target = wrap.querySelector('.mermaid');
+      if (parseFloat(target.dataset.zoom || '1') <= 1) return;
+      wrap.classList.add('is-panning');
+      startX = e.clientX; startY = e.clientY;
+      scrollL = wrap.scrollLeft; scrollT = wrap.scrollTop;
+    });
+    window.addEventListener('mousemove', function(e) {
+      if (!wrap.classList.contains('is-panning')) return;
+      wrap.scrollLeft = scrollL - (e.clientX - startX);
+      wrap.scrollTop = scrollT - (e.clientY - startY);
+    });
+    window.addEventListener('mouseup', function() {
+      wrap.classList.remove('is-panning');
+    });
+  });
+</script>
+
+</body>
+</html>
