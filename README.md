@@ -219,6 +219,18 @@ Optional for OCR: Enable **Cloud Vision API** and install `google-cloud-vision`.
 
 Filename matching is tried first. OCR handles most labeled products. Claude Vision is only used when OCR fails.
 
+## Role in the PPM Ecosystem
+
+`image-asset-pipeline` is a **static-asset onboarding upstream** in the PPM agency OS.
+
+One cohesive layer at one URL ("agency OS"). Four planes: identity; data seam (BigQuery in Data Warehouse); gbrain memory; agents + Control Tower. Creative production → CreativeHQ; creative analytics → Data Warehouse.
+
+**Output destination:** the organized index and renamed assets produced by this pipeline feed **CreativeHQ's `POST /api/assets/ingest`** — not deployed to ad platforms directly.
+
+**Drive integration:** `drive_auto_watcher.gs` is a Google Apps Script that watches a configured Drive folder and automatically triggers the pipeline when new images are added. Deploy it as a container-bound or standalone Apps Script with a Drive onChange trigger.
+
+See `ppm-automation-tool-ecosystem` for the canonical north-star architecture.
+
 ## License
 
 MIT
