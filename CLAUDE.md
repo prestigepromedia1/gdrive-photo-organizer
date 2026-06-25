@@ -38,6 +38,7 @@ organize → rename → index
 - `image_asset_pipeline.py` — Main CLI (all 4 commands)
 - `categories.json` — Category catalog with keywords + OCR label text map
 - `categories_example.json` — Example catalog format
+- `drive_auto_watcher.gs` — Google Apps Script watcher; triggers the pipeline automatically when new images are added to a configured Drive folder
 
 ## Architecture
 - Three-tier identification: filename match (free) → Cloud Vision OCR (~$1.50/1K images) → Claude Vision fallback (~$0.01-0.03/image)
@@ -58,11 +59,11 @@ This tool is part of the PPM Compounding Delivery System (10 tools across 2 orgs
 - **Reads from:**
   - Raw client image folders (unorganized, e.g. `IMG_4530.jpg`)
 - **Writes to:**
-  - Organized asset library → Google Drive photo library consumed by Creative Pipeline
+  - Organized asset library → indexed assets for CreativeHQ ingest API (`POST /api/assets/ingest`)
 - **Current gaps:**
   - No automated trigger — runs manually per client onboarding
   - No connection to CreativeHQ asset management
   - Taxonomy/naming output not yet aligned with ecosystem-wide asset_id convention (Phase 1d)
-- **Ecosystem map:** See `prestigepromedia1/beirut` repo for full architecture
+- **Ecosystem map:** See `ppm-automation-tool-ecosystem` repo for full architecture
 - **Key constraint:** image-asset-pipeline's north star comes first. Ecosystem connections are additive.
 - **Boundary rule:** North star wins inside this tool. Holistic design wins at interfaces between tools.
